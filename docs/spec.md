@@ -103,6 +103,8 @@ HASH = SHA256(
 )
 ```
 
+To create a condition from a fulfillment, hash the preimage, and get the mfl from the preimage, 
+
 ### Fulfillment
 
 ```
@@ -110,6 +112,10 @@ FULFILLMENT =
   VARUINT BITMASK = 1
   VARSTR PREIMAGE
 ```
+
+To create a fulfillment, the caller supplies a preimage and we concatenate etc.
+
+to verify, see if they match.
 
 ## RSA-SHA-256
 
@@ -131,6 +137,12 @@ HASH = SHA256(
 )
 ```
 
+// --
+
+To create a condition from a fulfillment, we hash the stuff that needs to be in the hash. Then we concatenate along with the max fulfillment length and the other stuff.
+
+// --
+
 ### Fulfillment
 
 ```
@@ -138,10 +150,19 @@ FULFILLMENT =
   VARUINT BITMASK = 2
   VARSTR MODULUS
   VARSTR MESSAGE_PREFIX
-  VARSTR MESSAGE
+  VARSTR MESSAGE_SUFFIX
   UINT8[LENGTH(MODULUS)] SIGNATURE
-  VARUINT BYTES_UNUSED
+  VARUINT MAX_FULLFILLMENT_LENGTH
 ```
+
+// --
+
+To create a fulfillment, the caller supplies a public key, an optional message prefix, an optional message suffix, a signature over the prefix + suffix, and the max fulfillment length. 
+
+We concatenate all the fields and serialize into the format.
+
+to verify fulfillment concat prefx + suffix, then check sig. then see if condition matches.
+// --
 
 The `SIGNATURE` must have the exact same number of octets as the `MODULUS`.
 
@@ -175,22 +196,41 @@ HASH = SHA256(
   SHA-256("https://w3.org/2016/02/xxx-xxx.html#threshold-sha-256")
   VARUINT BITMASK
   VARUINT THRESHOLD
-  VARUINT NUM_ELEMENTS
-  FOR EACH ELEMENT
-    ELEMENT_CONDITION
+  VARRAY
+    VARUINT WEIGHT
+    CONDITION
 )
 ```
+To create a condition from a fulfillment we first turn all of the fulfillments into conditions. then we take all of the conditions and sort them deterministically. and then we serialize it. 
 
 ### Fulfillment
 
 ```
 FULFILLMENT =
-  VARUINT BITMASK
   VARUINT THRESHOLD
-  VARUINT NUM_ELEMENTS
-  FOR EACH ELEMENT
-    VARUINT PARAMS
-    ELEMENT_CONDITION/FULFILLMENT
+  VARRAY
+    VARUINT WEIGHT
+    VARUINT BITMASK
+    FULFILLMENT
+  VARRAY
+    VARUINT WEIGHT
+    VARUINT BITMASK
+    UINT256 HASH
+    VARUINT MAX_FULFILLMENT_LENGTH
+    CONDITION
 
-PARAMS = (WEIGHT << 1) | (IS_FULFILLED % 1)
 ```
+
+// --
+
+To create a fulfillment, the caller supplies the threshold, an array of weight/conditions, an array of weight/fulfillments (the array of fulfillments needs to have at least threshold weight) <-optional. 
+
+optional:
+// fl = sort fullfilments by length
+// take first (threshold) items of fl
+
+and then serialize as shown (todo: reimplement protobufs)
+
+// --
+
+to verify a threshold fulfillment: verify all fulfillments in fulfillment array. add up weights and make sure it is at least threshold. then turn the threshold fulfillment to a condition. and check that it is the same one.
